@@ -39,15 +39,25 @@ contract NFTDutchAuction {
         currentPrice = initialPrice;
         auctionEnded = false;
     }
+    
+    function getCurrentPrice() external view returns (uint256) {
+	    uint256 blocksPassed = block.number - auctionStartTime;
+	    if (blocksPassed >= numBlocksAuctionOpen) {
+		return reservePrice;
+	    } else {
+		return initialPrice - blocksPassed * offerPriceDecrement;
+	    }
+	}
 
 	    function bid() external payable {
 	    require(!auctionEnded, "Auction has already ended");
-	    require(msg.value >= currentPrice, "Bid amount is less than the current price");
+        require(block.number <= auctionEndTime, "Auction has exceeded the maximum number of blocks");
+	    require(msg.value >= initialPrice - (block.number - auctionStartTime + 1)*offerPriceDecrement, "Bid amount is less than the current price");
 
-	    seller.transfer(currentPrice);
+	    seller.transfer(msg.value);
 	    nftToken.safeTransferFrom(address(this), msg.sender, nftTokenId);
 
-	    auctionEnded = true; // Add this line to mark the auction as ended
+	    auctionEnded = true;
 	}
 
     function cancelAuction() external {

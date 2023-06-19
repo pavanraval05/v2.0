@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { deployMockContract } = require("@ethereum-waffle/mock-contract");
+const { mine } = require("@nomicfoundation/hardhat-network-helpers");
 
 describe("NFTContract", function () {
   let nftContract;
@@ -47,12 +48,14 @@ describe("NFTContract", function () {
 
 it("should allow a bidder to place a bid and transfer the NFT", async function () {
 	const bidAmount = reservePrice.add(offerPriceDecrement.mul(numBlocksAuctionOpen - 1));
-
+		expect(await nftContract.getCurrentPrice()).to.equal(ethers.utils.parseEther("1.9"));
 	await erc721Mock.connect(buyer).mint(nftContract.address);
 
 	await ethers.provider.send("evm_mine");
 
 	await nftContract.connect(buyer).bid({ value: bidAmount });
+	expect(nftContract.connect(buyer).bid({ value: bidAmount })).to.be.revertedWith("Auction has already ended");
+
 
 	expect(await erc721Mock.ownerOf(tokenId)).to.equal(buyer.address);
 	expect(await nftContract.auctionEnded()).to.be.true;
@@ -70,15 +73,13 @@ it("should allow a bidder to place a bid and transfer the NFT", async function (
   });
 
   it("Should not allow a bidder to place a bid below the current price", async function () {
-	const bidAmount = reservePrice.add(offerPriceDecrement.mul(numBlocksAuctionOpen - 2));
+	const bidAmount = reservePrice.add(offerPriceDecrement.mul(numBlocksAuctionOpen - 5));
 
 	await erc721Mock.connect(buyer).mint(nftContract.address);
 
 	await ethers.provider.send("evm_mine");
 
-	await expect(nftContract.connect(buyer).bid({ value: bidAmount })).to.be.revertedWith(
-  	"Bid amount is less than the current price"
-	);
+	expect(await nftContract.connect(buyer).bid({ value: bidAmount })).to.be.revertedWith("Bid amount is less than the current price");
   });
 
 it("Buyer cannot cancel the aution", async function () {
@@ -104,10 +105,14 @@ it("Buyer cannot cancel the aution", async function () {
   await expect(nftContract.connect(seller).cancelAuction()).to.be.revertedWith("Auction has already ended");
 });
 
+ it("When 20 blocks are mined the auction should not let anyone to bid", async function () {
+ mine(20);
+  expect(await nftContract.getCurrentPrice()).to.equal(ethers.utils.parseEther("1"));
+  await expect(nftContract.connect(buyer).bid({ value: ethers.utils.parseEther("1.1") })).to.be.revertedWith("Auction has exceeded the maximum number of blocks");
+});
+
 
 
 });
 
-//1. if buyer is cancelling
-//if it is cancelled twice or cancelling after bid
 
